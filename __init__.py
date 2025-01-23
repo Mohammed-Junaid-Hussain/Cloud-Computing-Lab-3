@@ -1,61 +1,47 @@
-import json
-from cart import dao
-from products import Product, get_product
+from products import dao
 
-class Cart:
-    def __init__(self, id: int, username: str, contents: list[Product], cost: float):
+class Product:
+    def __init__(self, id: int, name: str, description: str, cost: float, qty: int = 0):
         self.id = id
-        self.username = username
-        self.contents = contents
+        self.name = name
+        self.description = description
         self.cost = cost
+        self.qty = qty
 
     @classmethod
-    def load(cls, data: dict) -> "Cart":
-        """Factory method to create a Cart instance from a dictionary."""
+    def load(cls, data: dict) -> "Product":
+        """Factory method to create a Product instance from a dictionary."""
         return cls(
             id=data.get('id', 0),
-            username=data.get('username', ""),
-            contents=data.get('contents', []),
-            cost=data.get('cost', 0.0)
+            name=data.get('name', ""),
+            description=data.get('description', ""),
+            cost=data.get('cost', 0.0),
+            qty=data.get('qty', 0)
         )
 
-def get_cart(username: str) -> list[Product]:
-    """Fetches the cart items for a given username."""
-    cart_details = dao.get_cart(username)
-    if not cart_details:
-        return []
+def list_products() -> list[Product]:
+    """Fetches and returns a list of all products."""
+    products = dao.list_products()
+    return [Product.load(product) for product in products]
 
-    items = []
-    for cart_detail in cart_details:
-        contents = cart_detail.get('contents', '[]')  # Default to an empty JSON array
-        try:
-            product_ids = json.loads(contents)
-            if not isinstance(product_ids, list):
-                continue  # Ensure product_ids is a list
-        except json.JSONDecodeError:
-            continue  # Skip invalid JSON content
+def get_product(product_id: int) -> Product:
+    """Fetches and returns a product by its ID."""
+    product_data = dao.get_product(product_id)
+    if not product_data:
+        raise ValueError(f"Product with ID {product_id} not found")
+    return Product.load(product_data)
 
-        for product_id in product_ids:
-            product = get_product(product_id)
-            if product:
-                items.append(product)
+def add_product(product: dict):
+    """Adds a new product using a dictionary of product details."""
+    required_keys = {'id', 'name', 'description', 'cost', 'qty'}
+    if not required_keys.issubset(product.keys()):
+        raise ValueError(f"Product data must include {required_keys}")
+    dao.add_product(product)
 
-    return items
-
-def add_to_cart(username: str, product_id: int):
-    """Adds a product to the user's cart."""
-    if not username or product_id <= 0:
-        raise ValueError("Invalid username or product_id")
-    dao.add_to_cart(username, product_id)
-
-def remove_from_cart(username: str, product_id: int):
-    """Removes a product from the user's cart."""
-    if not username or product_id <= 0:
-        raise ValueError("Invalid username or product_id")
-    dao.remove_from_cart(username, product_id)
-
-def delete_cart(username: str):
-    """Deletes the user's cart."""
-    if not username:
-        raise ValueError("Invalid username")
-    dao.delete_cart(username)
+def update_qty(product_id: int, qty: int):
+    """Updates the quantity of a specific product."""
+    if qty < 0:
+        raise ValueError("Quantity cannot be negative")
+    if not dao.get_product(product_id):
+        raise ValueError(f"Product with ID {product_id} not found")
+    dao.update_qty(product_id, qty)
